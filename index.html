@@ -121,6 +121,7 @@ select.inp option{background:#1e293b}
   <div class="header-top">
     <div class="header-title">🗂️ Moje doklady</div>
     <div class="header-actions">
+      <button class="btn-sm" id="btnSync" onclick="cloudLoad()">☁️ Sync</button>
       <button class="btn-sm" onclick="openSettings()">⚙️</button>
       <button class="btn-sm" onclick="exportData()">⬇</button>
       <label class="btn-sm" style="cursor:pointer;margin:0">⬆<input type="file" accept=".json" onchange="importData(event)" style="display:none"></label>
@@ -152,12 +153,12 @@ const NOTIF_DAYS_DEFAULT = 30;
 const TABS = {
   people: {
     label:"osoba", labelPl:"osob", emoji:"👤",
-    emojis:["👩","👨","👧","👦","🧑"],
+    emojis:["👱‍♀️","👱‍♂️","🧒","👶","🧓"],
     cats:[
-      {id:"op",      label:"Občanský průkaz",  icon:"🪪"},
-      {id:"passport",label:"Pas",              icon:"📘"},
-      {id:"drivers", label:"Řidičský průkaz",  icon:"🚗"},
-      {id:"health",  label:"Zdravotní průkaz", icon:"🏥"},
+      {id:"op",      label:"Občanský průkaz",  icon:"🆔"},
+      {id:"passport",label:"Pas",              icon:"✈️"},
+      {id:"drivers", label:"Řidičský průkaz",  icon:"🏎️"},
+      {id:"health",  label:"Zdravotní průkaz", icon:"💊"},
       {id:"other",   label:"Jiné",             icon:"📄"},
     ],
     maxItems:5,
@@ -166,12 +167,12 @@ const TABS = {
   },
   cars: {
     label:"auto", labelPl:"aut", emoji:"🚗",
-    emojis:["🚗","🚙","🚐","🚕","🚌"],
+    emojis:["🔑","🛻","🚘","🏁","⛽"],
     cats:[
-      {id:"stz",      label:"Technická prohlídka",icon:"🔧"},
-      {id:"insurance",label:"Pojištění vozidla",  icon:"🛡️"},
-      {id:"vignette", label:"Dálniční nálepka",   icon:"🛣️"},
-      {id:"emission", label:"Emisní kontrola",     icon:"💨"},
+      {id:"stz",      label:"Technická prohlídka",icon:"🔩"},
+      {id:"insurance",label:"Pojištění vozidla",  icon:"📑"},
+      {id:"vignette", label:"Dálniční nálepka",   icon:"🏷️"},
+      {id:"emission", label:"Emisní kontrola",     icon:"🌿"},
       {id:"other",    label:"Jiné",               icon:"📄"},
     ],
     maxItems:10,
@@ -180,17 +181,17 @@ const TABS = {
   },
   houses: {
     label:"dům/byt", labelPl:"nemovitostí", emoji:"🏠",
-    emojis:["🏠","🏡","🏢","🏘️","🏗️"],
+    emojis:["🔑","🪟","🚪","🏛️","🌳"],
     cats:[
-      {id:"ins_build",label:"Pojištění nemovitosti",          icon:"🛡️"},
-      {id:"ins_home", label:"Pojištění domácnosti",           icon:"🛋️"},
+      {id:"ins_build",label:"Pojištění nemovitosti",          icon:"🏠"},
+      {id:"ins_home", label:"Pojištění domácnosti",           icon:"🪑"},
       {id:"ins_liab", label:"Pojištění odpovědnosti",         icon:"📋"},
-      {id:"rev_elec", label:"Revize elektřiny",               icon:"⚡"},
-      {id:"rev_gas",  label:"Revize plynu",                   icon:"🔥"},
-      {id:"rev_chim", label:"Revize komínu",                  icon:"🏚️"},
-      {id:"rev_lift", label:"Revize výtahu",                  icon:"🛗"},
-      {id:"rev_fire", label:"Revize hasicích přístrojů",      icon:"🧯"},
-      {id:"energy",   label:"Průkaz energetické náročnosti",  icon:"📊"},
+      {id:"rev_elec", label:"Revize elektřiny",               icon:"🔌"},
+      {id:"rev_gas",  label:"Revize plynu",                   icon:"🫙"},
+      {id:"rev_chim", label:"Revize komínu",                  icon:"🧱"},
+      {id:"rev_lift", label:"Revize výtahu",                  icon:"⬆️"},
+      {id:"rev_fire", label:"Revize hasicích přístrojů",      icon:"🚒"},
+      {id:"energy",   label:"Průkaz energetické náročnosti",  icon:"🌡️"},
       {id:"warranty", label:"Záruka na stavbu / spotřebiče",  icon:"🏗️"},
       {id:"other",    label:"Jiné",                           icon:"📄"},
     ],
@@ -209,10 +210,12 @@ const ST={
 };
 
 // ── State ─────────────────────────────────────────────────────────────────
+const CLOUD_URL="https://script.google.com/macros/s/AKfycbxxLuMJLVE4f6QZ8lWF7Cn4cHocZGnDgSMqcnuU6EMkQlW3sZ0MTAWuqN-ZJxpN-znfCQ/exec";
 let state={people:[],cars:[],houses:[]};
 let settings={notifDays:NOTIF_DAYS_DEFAULT, notifEnabled:false, bannerDismissed:false};
 let tab="people";
 let expanded=new Set();
+let syncing=false;
 
 // ── Persistence ───────────────────────────────────────────────────────────
 function load(){
@@ -225,7 +228,43 @@ function load(){
     if(s)settings={...settings,...JSON.parse(s)};
   }catch{}
 }
-function persist(){localStorage.setItem("doklady-v3",JSON.stringify(state));}
+function persist(){
+  localStorage.setItem("doklady-v3",JSON.stringify(state));
+  cloudSave();
+}
+
+async function cloudSave(){
+  if(syncing)return;syncing=true;setSyncStatus("syncing");
+  try{
+    const r=await fetch(CLOUD_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(state)});
+    setSyncStatus("ok");
+  }catch(e){console.log("save err",e);setSyncStatus("err");}
+  syncing=false;
+}
+
+async function cloudLoad(){
+  if(syncing)return;syncing=true;setSyncStatus("syncing");
+  try{
+    const r=await fetch(CLOUD_URL+"?t="+Date.now(),{mode:"cors"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const d=await r.json();
+    if(d&&d.people!==undefined){
+      state.people=d.people||[];state.cars=d.cars||[];state.houses=d.houses||[];
+      localStorage.setItem("doklady-v3",JSON.stringify(state));
+      render();
+    }
+    setSyncStatus("ok");
+  }catch(e){console.log("load err",e);setSyncStatus("err");}
+  syncing=false;
+}
+
+function setSyncStatus(s){
+  const btn=document.getElementById("btnSync");if(!btn)return;
+  if(s==="syncing"){btn.textContent="☁️ Ukládám…";btn.style.color="#60a5fa";}
+  else if(s==="ok"){btn.textContent="☁️ OK";btn.style.color="#22c55e";setTimeout(()=>{btn.textContent="☁️ Sync";btn.style.color="";},2500);}
+  else if(s==="err"){btn.textContent="☁️ Chyba";btn.style.color="#ef4444";setTimeout(()=>{btn.textContent="☁️ Sync";btn.style.color="";},3000);}
+  else{btn.textContent="☁️ Sync";btn.style.color="";}
+}
 function persistSettings(){localStorage.setItem("doklady-settings",JSON.stringify(settings));}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -371,38 +410,4 @@ function render(){
   let h="";
 
   // Notification banner
-  if(notifSupported()&&!notifGranted()&&!settings.bannerDismissed){
-    h+=`<div class="notif-banner">
-      <div class="notif-banner-text">
-        <strong>🔔 Zapnout upozornění</strong>
-        Připomenu ti vypršení ${settings.notifDays} dní předem
-      </div>
-      <button class="btn-notif" onclick="requestNotifPermission()">Zapnout</button>
-      <button class="btn-close-banner" onclick="dismissBanner()">✕</button>
-    </div>`;
-  }
-
-  h+=`<div class="summary">
-    <div class="sum-chip"><span style="color:#94a3b8;font-weight:800">${items.length}</span>&nbsp;${cfg.labelPl}</div>
-    <div class="sum-chip"><span style="color:#94a3b8;font-weight:800">${totalDocs}</span>&nbsp;dokladů</div>
-    ${urgent?`<div class="sum-chip"><span style="color:#ef4444;font-weight:800">${urgent}</span>&nbsp;vyžaduje pozornost</div>`:""}
-  </div><div class="owners">`;
-
-  if(!items.length){
-    h+=`<div class="empty"><div class="empty-icon">${cfg.emoji}</div>
-      <div class="empty-text">Žádné záznamy</div>
-      <div class="empty-sub">Klikni na „+" a přidej ${cfg.label}</div></div>`;
-  }
-
-  items.forEach((item,idx)=>{
-    const color=COLORS[idx%COLORS.length];
-    const emoji=cfg.emojis[idx%cfg.emojis.length];
-    const isOpen=expanded.has(item.id);
-    const ws=worstStatus(item.docs);
-    const wsSt=ws?ST[ws]:null;
-    const sorted=[...item.docs].sort((a,b)=>daysLeft(a.expiryDate)-daysLeft(b.expiryDate));
-
-    h+=`<div class="owner-card">
-      <div class="owner-header" onclick="toggle('${item.id}')">
-        <div class="owner-header-left">
-          <div class="owner-avatar ${color}">${emoji}</div>
+  if
